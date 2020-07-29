@@ -1,5 +1,8 @@
 from setuptools import setup
 
+with open('README.md') as f:
+    long_description = f.read()
+
 setup(
     name='ObjectDelegator',
     version='1.0',
@@ -21,4 +24,6 @@ setup(
         "Topic :: Software Development :: Object Brokering",
     ],
     python_requires='>=3.8',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
 )
