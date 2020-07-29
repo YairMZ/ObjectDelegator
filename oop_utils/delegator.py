@@ -16,6 +16,7 @@ class Delegator(ABC):
     To use, inherit it and use the API to delegate chosen members.
     """
     _delegated_members: dict = {}
+    _originating_object_delegateable_members = []
 
     def get_delegated_members(self) -> dict:
         """
@@ -37,15 +38,33 @@ class Delegator(ABC):
         :raises AttributeError: The function raises an AttributeError if a certian member doesn't have the required attribute
         :raises ValueError: The function raises a ValueError if the same member name appears twice.
         """
+        if not self._delegated_members:  # if no delegations were yet made, list originating members
+            self._originating_object_delegateable_members = [obj for obj in dir(self) if
+                                                             not (obj.startswith('_') or callable(getattr(self, obj)))]
         member_names = []
         [member_names.extend(x) for x in delegation_dict.values()]  # get all member names
         if len(set(member_names)) < len(member_names):  # check for recurring names
             raise ValueError("cannot delegate two members with the same name.")
-        for member in delegation_dict.keys():
+
+        prevois_delegations = self._list_all_delegated_members  # look for new conflicting delegations
+        for new_member in member_names:
+            if new_member in prevois_delegations:
+                raise ValueError("cannot delegate two members with the same name.")
+
+        for member in delegation_dict.keys():  # verify suggested object names are valid attributes of master
             for member_name in delegation_dict[member]:
                 if not getattr(getattr(self, member), member_name, None):
                     raise AttributeError("'%s' object has no attribute '%s'" % (member, member_name))
-        self._delegated_members = delegation_dict
+
+        # now delegate
+        if not self._delegated_members:
+            self._delegated_members = delegation_dict
+        else:
+            for member in delegation_dict.keys():  # for each object needing delegation
+                if member not in self._delegated_members.keys():  # if this object didn't have delegation before
+                    self._delegated_members[member] = delegation_dict[member]
+                else:  # if it had delegations append the new ones
+                    self._delegated_members[member] += delegation_dict[member]
 
     def get_possible_members_to_delegate(self, required_object: Union[None, str] = None) -> dict:
         """Obtain a dict of members which can be delegated.
@@ -71,11 +90,14 @@ class Delegator(ABC):
         """This method is only relevant if called within a child class (when self is a subclassed object).
         Most probably won't raise any exceptions otherwise, but results will be confusing and misleading.
         """
-        delegation_dict = self._delegated_members
+        already_delegated = self._list_all_delegated_members  # list members already delegated as I may delegate to them recursively
+        return self._originating_object_delegateable_members + already_delegated
+
+    def clear_all_delegations(self):
         self._delegated_members = {}
-        res = [obj for obj in dir(self) if not (obj.startswith('_') or callable(getattr(self, obj)))]
-        self.set_delegated_members(delegation_dict)
-        return res
+
+    def remove_delegations_for_object(self, obj_name: str):
+        self._delegated_members.pop(obj_name, None)
 
     @property
     def _list_all_delegated_members(self):
@@ -98,8 +120,15 @@ class Delegator(ABC):
 
 
 if __name__ == '__main__':
+    class RabbitHole:
+        def __init__(self, txt):
+            self.down_we_go = txt
+
+
     class Foo:
         foo_property = 'hi'
+        not_delegated_property = 'bye'
+        rabbit = RabbitHole('first rabbit')
 
         # noinspection PyMethodMayBeStatic
         def foo(self):
@@ -107,18 +136,49 @@ if __name__ == '__main__':
             return 'foo'
 
 
-    class Bar(Delegator):
+    class Bar:
+        rabbit_too = RabbitHole('second rabbit')
+        boring = 2
+
+
+    class Master(Delegator):
         def __init__(self):
-            tmp = Foo()
-            self.bar = tmp
+            self.foo_obj = Foo()
+            self.bar_obj = Bar()
             self.test = 1
-            self.set_delegated_members({'bar': ['foo', 'foo_property']})
 
 
-    b = Bar()
-    print(b.foo())
-    test = dir(b)
-    print(b.get_possible_objects_to_delegate_to())
-    print(b.get_possible_members_to_delegate())
-    print(b.foo_property)
-    pass
+    master = Master()  # instantiate a master
+
+    # Do some delegations
+    master.set_delegated_members({'foo_obj': ['foo', 'foo_property', 'rabbit'], 'bar_obj': ['rabbit_too']})
+    print(master.foo())  # can delegate methods
+    print(master.foo_property)  # can delegate properties
+    print(master.rabbit.down_we_go)  # or even other objects
+    print(master.rabbit_too.down_we_go)  # and another rabbit hole instance
+
+    # find more objects I can delegate too
+    print(master.get_possible_objects_to_delegate_to())
+
+    # find more members I can delegate to master
+    print(master.get_possible_members_to_delegate())
+
+    # list delegated members
+    print(master.get_delegated_members())
+
+    # delegate the first rabbit too to preserve encapsulation
+    master.set_delegated_members({'rabbit': ['down_we_go']})
+    print(master.down_we_go)
+
+    # if we try to delegate the second rabbit we get a ValueError as we can't have two members with the same name
+    # master.set_delegated_members({'rabbit_too': ['down_we_go']})
+
+    # let us then remove the delegation for the first rabbit
+    master.remove_delegations_for_object('rabbit')
+
+    # and delegate the second
+    master.set_delegated_members({'rabbit_too': ['down_we_go']})
+    print(master.down_we_go)
+
+    # clear all the mess
+    master.clear_all_delegations()
