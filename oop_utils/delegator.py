@@ -1,9 +1,10 @@
 from abc import ABC
-from typing import Union
+from typing import Union, Any, List
 
 
 # taken from https://www.fast.ai/2019/08/06/delegation/
-def custom_dir(c, add):
+def _custom_dir(c: Any, add: List[str]) -> list:
+    """Used to add list of custom strings to the dir() of a delegator"""
     return dir(type(c)) + list(c.__dict__.keys()) + add
 
 
@@ -11,20 +12,30 @@ def custom_dir(c, add):
 # noinspection SpellCheckingInspection
 class Delegator(ABC):
     """
-    Base class for attr accesses in `self._xtra` passed down to `self.default`
+    Abstract class to enable delegation of methods.
+    To use inherit it and use the API to delegate specific methods of chosen members.
     """
-    _delegated_methods = {}
+    _delegated_methods: dict = {}
 
-    def get_delegated_methods(self):
+    def get_delegated_methods(self) -> dict:
+        """
+        return all delegated methods
+
+        :rtype: dict
+        :return: returns a dictionary with keys as memebers which own delegated methods, values as list of string names of delegated methds per member.
+        """
         return self._delegated_methods
 
-    def set_delegated_methods(self, delegation_dict: dict):
-        """
-        delegation dict should be a dictionary of members names as keys, as methods names as list of strings.
+    def set_delegated_methods(self, delegation_dict: dict) -> None:
+        """sets the delegated methods
+
+        delegation dict should be a dictionary of members names as keys, and methods names as list of strings.
         Example:
-            {'foo_obj': ['foo_method1], 'bar_obj': ['bar_method1', 'bar_method2']}
-        The function raises an AttributeError if a certian member doesn't ahve the required method,
-        or a ValueError ifthe same method name appears twice.
+
+        {'foo_obj': ['foo_method1], 'bar_obj': ['bar_method1', 'bar_method2']}
+
+        :raises AttributeError: The function raises an AttributeError if a certian member doesn't have the required method
+        :raises ValueError: The function raises a ValueError if the same method name appears twice.
         """
         method_names = []
         [method_names.extend(x) for x in delegation_dict.values()]  # get all method names
@@ -36,15 +47,20 @@ class Delegator(ABC):
                     raise AttributeError("'%s' object has no callable '%s'" % (member, method_name))
         self._delegated_methods = delegation_dict
 
-    def get_possible_methods_to_delegate(self, required_object: Union[None, str] = None):
-        """if required_object is set to None possible methods are returned for all object members"""
+    def get_possible_methods_to_delegate(self, required_object: Union[None, str] = None) -> dict:
+        """Obtain a dict of methods which can be delegated for a single or all members.
+
+        :param required_object: if required_object is None possible methods are returned for all object members otherwise methods are returned for selected member.
+        :rtype: dict
+        :returns: a dict of keys as objects, and values as strings of method names whic hcan be delegated.
+        """
         if required_object is None:
             possible_members = self.get_possible_objects_to_delegate_to()
             result = {}
             for member in possible_members:
                 result[member] = list(
-                filter(lambda x: x[0] != '_' and callable(getattr(getattr(self, member), x)),
-                       dir(getattr(self, member))))
+                    filter(lambda x: x[0] != '_' and callable(getattr(getattr(self, member), x)),
+                           dir(getattr(self, member))))
             return result
         else:
             return {required_object: list(
@@ -57,7 +73,9 @@ class Delegator(ABC):
         """
         return [obj for obj in dir(self) if not (obj.startswith('_') or callable(getattr(self, obj)))]
 
+    @property
     def _list_all_delegated_methods(self):
+        """returns a flat list of all delegated methods. For internal use."""
         if self._delegated_methods:
             method_names = []
             [method_names.extend(x) for x in self._delegated_methods.values()]  # get all method names
@@ -72,12 +90,14 @@ class Delegator(ABC):
         raise AttributeError(_attribute)
 
     def __dir__(self):
-        return custom_dir(self, self._list_all_delegated_methods())
+        return _custom_dir(self, self._list_all_delegated_methods)
 
 
 if __name__ == '__main__':
     class Foo:
+        # noinspection PyMethodMayBeStatic
         def foo(self):
+            """dummy method"""
             return 'foo'
 
 
