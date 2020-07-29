@@ -1,9 +1,9 @@
 from setuptools import setup
 
 setup(
-    name='object-delegator',
+    name='ObjectDelegator',
     version='1.0',
-    packages=['object-delegator'],
+    packages=['ObjectDelegator'],
     url='https://github.com/YairMZ/OOP_utils',
     license='',
     author='Yair Mazal',
