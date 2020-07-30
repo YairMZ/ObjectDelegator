@@ -5,7 +5,7 @@ with open('README.md') as f:
 
 setup(
     name='ObjectDelegator',
-    version='1.0.2',
+    version='1.1',
     packages=['ObjectDelegator'],
     url='https://github.com/YairMZ/ObjectDelegator',
     license='GNU General Public License v3.0',
@@ -14,7 +14,7 @@ setup(
     description='This minimal yet powerful library allows delegation of an objects: methods, properties, and his own '
                 'member objects, to an object who owns it. Recursive delegation is also supported.'
                 'Use the simple API to handle delegations.',
-    download_url='https://github.com/YairMZ/ObjectDelegator/archive/v1.0.2.tar.gz',
+    download_url='https://github.com/YairMZ/ObjectDelegator/archive/v1.1.tar.gz',
     keywords=['OOP', 'delegation', 'composition'],
     classifiers=[
         "Programming Language :: Python :: 3",
