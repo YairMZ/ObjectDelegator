@@ -90,6 +90,12 @@ class Delegator(ABC):
         self._delegated_members = {}
 
     def remove_delegations_for_object(self, obj_name: str):
+        """The function removes all delegations made for members obj_name,
+        as well dependent recursive delegations, i.e. if one of obj_name did his own delegations they are rmoved too"""
+        # check if i need to remove dependent recursive delegations
+        for delegate in self._delegated_members.get(obj_name, None):
+            if delegate in self._delegated_members:
+                self.remove_delegations_for_object(delegate)
         self._delegated_members.pop(obj_name, None)
 
     @property
@@ -166,7 +172,9 @@ if __name__ == '__main__':
     # master.set_delegated_members({'rabbit_too': ['down_we_go']})
 
     # let us then remove the delegation for the first rabbit
-    master.remove_delegations_for_object('rabbit')
+    print('before removal: ', master.get_delegated_members())
+    master.remove_delegations_for_object('foo_obj')
+    print('after recursive removal: ', master.get_delegated_members())
 
     # and delegate the second
     master.set_delegated_members({'rabbit_too': ['down_we_go']})
