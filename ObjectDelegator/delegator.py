@@ -61,12 +61,6 @@ class Delegator(ABC):
                 else:  # if it had delegations append the new ones
                     self._delegated_members[obj] += delegation_dict[obj]
 
-        # for the sake autocompletion add composed methods if needed
-        for obj in delegation_dict:
-            for delegate in delegation_dict[obj]:
-                if callable(getattr(getattr(self, obj), delegate)):
-                    self._compose_a_method(obj, delegate)
-
     def get_possible_members_to_delegate(self, required_object: Union[None, str] = None) -> dict:
         """Obtain a dict of members which can be delegated.
 
@@ -117,20 +111,21 @@ class Delegator(ABC):
             return []
 
     def _compose_a_method(self, obj, delegate):
-        """ for the sake autocompletion add composed methods for callable delegates """
+        """ not currently used """
 
         def new_method(self, *args, **kwargs):
             return getattr(getattr(self, obj), delegate)(*args, **kwargs)
 
-        new_method.__name__ = delegate
-        new_method.__doc__ = getattr(getattr(self, obj), delegate).__doc__
-        new_method.__qualname__ = getattr(getattr(self, obj), delegate).__qualname__
         if inspect.isfunction(getattr(getattr(self, obj), delegate)):
             new_method.__defaults__ = getattr(getattr(self, obj), delegate).__defaults__
             new_method.__kwdefaults__ = getattr(getattr(self, obj), delegate).__kwdefaults__
             new_method.__annotations__ = getattr(getattr(self, obj), delegate).__annotations__
+
+        new_method.__name__ = delegate
+        new_method.__doc__ = getattr(getattr(self, obj), delegate).__doc__
+        new_method.__qualname__ = self.__class__.__name__ + '.' + delegate
         new_method.__signature__ = inspect.signature(getattr(getattr(self, obj), delegate))
-        test = inspect.signature(getattr(getattr(self, obj), delegate))
+
         self.__setattr__(delegate, MethodType(new_method, self))
 
     def __getattr__(self, _attribute):
@@ -164,6 +159,9 @@ if __name__ == '__main__':
         rabbit_too = RabbitHole('second rabbit')
         boring = 2
 
+        def bar_meth(self, text: str) -> str:
+            return text + text
+
 
     class Master(Delegator):
         def __init__(self):
@@ -171,6 +169,8 @@ if __name__ == '__main__':
             self.bar_obj = Bar()
             self.test = 1
 
+        def master_method(self):
+            print("I'm the master")
 
     master = Master()  # instantiate a master
 
@@ -180,6 +180,7 @@ if __name__ == '__main__':
     sig = inspect.signature(master.foo)
 
     print(master.foo('hi there'))
+    print(inspect.getmembers(master, inspect.ismethod))
     print(master.foo_property)  # can delegate properties
 
     print(master.rabbit.down_we_go)  # or even other objects
@@ -211,3 +212,5 @@ if __name__ == '__main__':
 
     # clear all the mess
     master.clear_all_delegations()
+
+    master.set_delegated_members({'foo_obj': ['foo', 'foo_property', 'rabbit'], 'bar_obj': ['rabbit_too', 'bar_meth']})
