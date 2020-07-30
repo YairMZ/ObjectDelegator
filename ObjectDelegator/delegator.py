@@ -1,5 +1,7 @@
 from abc import ABC
 from typing import Union
+import inspect
+from types import MethodType
 
 
 # based on https://www.fast.ai/2019/08/06/delegation/
@@ -44,20 +46,26 @@ class Delegator(ABC):
             if new_member in previous_delegations:
                 raise ValueError("cannot delegate two members with the same name.")
 
-        for member in delegation_dict.keys():  # verify suggested object names and members are valid attributes
-            for member_name in delegation_dict[member]:
-                if not getattr(getattr(self, member), member_name, None):
-                    raise AttributeError("'%s' object has no attribute '%s'" % (member, member_name))
+        for obj in delegation_dict:  # verify suggested object names and members are valid attributes
+            for member_name in delegation_dict[obj]:
+                if not getattr(getattr(self, obj), member_name, None):
+                    raise AttributeError("'%s' object has no attribute '%s'" % (obj, member_name))
 
         # now delegate
         if not self._delegated_members:
             self._delegated_members = delegation_dict
         else:
-            for member in delegation_dict.keys():  # for each object needing delegation
-                if member not in self._delegated_members.keys():  # if this object didn't have delegation before
-                    self._delegated_members[member] = delegation_dict[member]
+            for obj in delegation_dict:  # for each object needing delegation
+                if obj not in self._delegated_members.keys():  # if this object didn't have delegation before
+                    self._delegated_members[obj] = delegation_dict[obj]
                 else:  # if it had delegations append the new ones
-                    self._delegated_members[member] += delegation_dict[member]
+                    self._delegated_members[obj] += delegation_dict[obj]
+
+        # for the sake autocompletion add composed methods if needed
+        for obj in delegation_dict:
+            for delegate in delegation_dict[obj]:
+                if callable(getattr(getattr(self, obj), delegate)):
+                    self._compose_a_method(obj, delegate)
 
     def get_possible_members_to_delegate(self, required_object: Union[None, str] = None) -> dict:
         """Obtain a dict of members which can be delegated.
@@ -108,6 +116,23 @@ class Delegator(ABC):
         else:
             return []
 
+    def _compose_a_method(self, obj, delegate):
+        """ for the sake autocompletion add composed methods for callable delegates """
+
+        def new_method(self, *args, **kwargs):
+            return getattr(getattr(self, obj), delegate)(*args, **kwargs)
+
+        new_method.__name__ = delegate
+        new_method.__doc__ = getattr(getattr(self, obj), delegate).__doc__
+        new_method.__qualname__ = getattr(getattr(self, obj), delegate).__qualname__
+        if inspect.isfunction(getattr(getattr(self, obj), delegate)):
+            new_method.__defaults__ = getattr(getattr(self, obj), delegate).__defaults__
+            new_method.__kwdefaults__ = getattr(getattr(self, obj), delegate).__kwdefaults__
+            new_method.__annotations__ = getattr(getattr(self, obj), delegate).__annotations__
+        new_method.__signature__ = inspect.signature(getattr(getattr(self, obj), delegate))
+        test = inspect.signature(getattr(getattr(self, obj), delegate))
+        self.__setattr__(delegate, MethodType(new_method, self))
+
     def __getattr__(self, _attribute):
         for member in self._delegated_members.keys():
             if _attribute in self._delegated_members[member]:
@@ -115,7 +140,7 @@ class Delegator(ABC):
         raise AttributeError(_attribute)
 
     def __dir__(self):
-        return dir(type(self)) + list(self.__dict__.keys()) + self._list_all_delegated_members
+        return list(set(dir(type(self)) + list(self.__dict__.keys()) + self._list_all_delegated_members))
 
 
 if __name__ == '__main__':
@@ -130,9 +155,9 @@ if __name__ == '__main__':
         rabbit = RabbitHole('first rabbit')
 
         # noinspection PyMethodMayBeStatic
-        def foo(self):
+        def foo(self, txt: str) -> str:
             """dummy method"""
-            return 'foo'
+            return txt
 
 
     class Bar:
@@ -151,8 +176,12 @@ if __name__ == '__main__':
 
     # Do some delegations
     master.set_delegated_members({'foo_obj': ['foo', 'foo_property', 'rabbit'], 'bar_obj': ['rabbit_too']})
-    print(master.foo())  # can delegate methods
+    print(master.foo.__doc__)  # can delegate methods
+    sig = inspect.signature(master.foo)
+
+    print(master.foo('hi there'))
     print(master.foo_property)  # can delegate properties
+
     print(master.rabbit.down_we_go)  # or even other objects
     print(master.rabbit_too.down_we_go)  # and another rabbit hole instance
     # find more objects I can delegate too
