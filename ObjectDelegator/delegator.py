@@ -1,29 +1,22 @@
 from abc import ABC
-from typing import Union, Any, List
-
-
-# taken from https://www.fast.ai/2019/08/06/delegation/
-def _custom_dir(c: Any, add: List[str]) -> list:
-    """Used to add list of custom strings to the dir() of a delegator"""
-    return dir(type(c)) + list(c.__dict__.keys()) + add
+from typing import Union
 
 
 # based on https://www.fast.ai/2019/08/06/delegation/
-# noinspection SpellCheckingInspection
 class Delegator(ABC):
     """
     Abstract class to enable delegation of members, properties, and methods.
     To use, inherit it and use the API to delegate chosen members.
     """
     _delegated_members: dict = {}
-    _originating_object_delegateable_members = []
+    _originating_object_delegatable_members = []
 
     def get_delegated_members(self) -> dict:
         """
         return all delegated members
 
         :rtype: dict
-        :return: returns a dictionary with keys as memebers which own delegated members, values as list of string names of delegated members.
+        :return: returns a dictionary with keys as members which own delegated members, values as list of string names of delegated members.
         """
         return self._delegated_members
 
@@ -35,23 +28,23 @@ class Delegator(ABC):
 
         {'foo_obj': ['foo_method1], 'bar_obj': ['bar_method1', 'bar_method2']}
 
-        :raises AttributeError: The function raises an AttributeError if a certian member doesn't have the required attribute
+        :raises AttributeError: The function raises an AttributeError if a certain member doesn't have the required attribute
         :raises ValueError: The function raises a ValueError if the same member name appears twice.
         """
         if not self._delegated_members:  # if no delegations were yet made, list originating members
-            self._originating_object_delegateable_members = [obj for obj in dir(self) if
-                                                             not (obj.startswith('_') or callable(getattr(self, obj)))]
+            self._originating_object_delegatable_members = [obj for obj in dir(self) if
+                                                            not (obj.startswith('_') or callable(getattr(self, obj)))]
         member_names = []
         [member_names.extend(x) for x in delegation_dict.values()]  # get all member names
         if len(set(member_names)) < len(member_names):  # check for recurring names
             raise ValueError("cannot delegate two members with the same name.")
 
-        prevois_delegations = self._list_all_delegated_members  # look for new conflicting delegations
+        previous_delegations = self._list_all_delegated_members  # look for new conflicting delegations
         for new_member in member_names:
-            if new_member in prevois_delegations:
+            if new_member in previous_delegations:
                 raise ValueError("cannot delegate two members with the same name.")
 
-        for member in delegation_dict.keys():  # verify suggested object names are valid attributes of master
+        for member in delegation_dict.keys():  # verify suggested object names and members are valid attributes
             for member_name in delegation_dict[member]:
                 if not getattr(getattr(self, member), member_name, None):
                     raise AttributeError("'%s' object has no attribute '%s'" % (member, member_name))
@@ -71,7 +64,7 @@ class Delegator(ABC):
 
         :param required_object: if required_object is None possible members are returned for all members of self. otherwise  possible members are returned for required_object.
         :rtype: dict
-        :returns: a dict of object names as keys, and values as strings of member names which hcan be delegated.
+        :returns: a dict of object names as keys, and values as strings of member names which can be delegated.
         """
         if required_object is None:
             possible_members = self.get_possible_objects_to_delegate_to()
@@ -91,7 +84,7 @@ class Delegator(ABC):
         Most probably won't raise any exceptions otherwise, but results will be confusing and misleading.
         """
         already_delegated = self._list_all_delegated_members  # list members already delegated as I may delegate to them recursively
-        return self._originating_object_delegateable_members + already_delegated
+        return self._originating_object_delegatable_members + already_delegated
 
     def clear_all_delegations(self):
         self._delegated_members = {}
@@ -116,7 +109,7 @@ class Delegator(ABC):
         raise AttributeError(_attribute)
 
     def __dir__(self):
-        return _custom_dir(self, self._list_all_delegated_members)
+        return dir(type(self)) + list(self.__dict__.keys()) + self._list_all_delegated_members
 
 
 if __name__ == '__main__':
@@ -156,7 +149,6 @@ if __name__ == '__main__':
     print(master.foo_property)  # can delegate properties
     print(master.rabbit.down_we_go)  # or even other objects
     print(master.rabbit_too.down_we_go)  # and another rabbit hole instance
-
     # find more objects I can delegate too
     print(master.get_possible_objects_to_delegate_to())
 
