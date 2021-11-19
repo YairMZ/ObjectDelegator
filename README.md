@@ -34,7 +34,6 @@ class Foo:
     not_delegated_property = 'bye'
     rabbit = RabbitHole('first rabbit')
 
-    # noinspection PyMethodMayBeStatic
     def foo(self):
         """dummy method"""
         return 'foo'
